@@ -33,11 +33,11 @@ router.post(
       } catch (err) {
         console.warn("⚠️ Cloudinary Upload Failed! Serving the uploaded file locally. Error details:", err.message);
 
-        // Fallback: server port (fallback to 4000)
-        const port = process.env.PORT || 4000;
+        // Dynamically get the current protocol and host (works for localhost and live servers like Render!)
+        const host = req.get("host");
+        const protocol = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
         
-        // Save as a local serving URL so the actual uploaded image is shown
-        req.file.path = `http://localhost:${port}/uploads/${req.file.filename}`;
+        req.file.path = `${protocol}://${host}/uploads/${req.file.filename}`;
       }
     }
     next();
