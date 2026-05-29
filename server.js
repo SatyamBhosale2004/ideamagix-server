@@ -1,35 +1,70 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+require("dotenv").config();
+
+const connectDB = require("./config/db");
+
+// Import routes
+const authRoutes = require("./routes/authRoutes");
 const instructorRoutes = require("./routes/instructorRoutes");
 const courseRoutes = require("./routes/courseRoutes");
-require("dotenv").config();
+const lectureRoutes = require("./routes/lectureRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 const app = express();
 
-app.use(cors()); 
-
-app.use(express.json());
-app.use("/api/instructors", instructorRoutes);
-app.use("/api/courses", courseRoutes);
-app.get("/", (req, res) => {
-  res.send("api running");
+// Custom request logger middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+  });
+  next();
 });
 
+// Security middleware
+app.use(helmet());
+app.use(cors());
+
+// Rate limiting - max 100 requests per 15 min per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { message: "Too many requests, please try again later" },
+});
+app.use(limiter);
+
+// Body parser
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/instructors", instructorRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/lectures", lectureRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
+// Health check
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
+
+// Global error handler - catches errors from middleware like multer
+app.use((err, req, res, next) => {
+  console.error("Error:", err.message);
+  console.error(err.stack);
+  res.status(500).json({ message: "Server error", error: err.message });
+});
 
 const PORT = process.env.PORT || 5000;
 
-
-
-mongoose 
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("Mongo connected");
-
-    app.listen(PORT, () => {
-    console.log(`Backend server is running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error(err);
+// Connect to MongoDB then start server
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
   });
+});
